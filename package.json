@@ -3,14 +3,21 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
-  "engines": { "node": ">=20" },
-  "scripts": { "start": "node server.js" },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "build": "npm install"
+  },
   "dependencies": {
+    "@sparticuz/chromium": "^131.0.1",
     "@whiskeysockets/baileys": "6.7.9",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "pino": "^9.4.0",
-    "puppeteer-core": "^23.10.4",
+    "puppeteer": "23.10.4",
+    "puppeteer-core": "23.10.4",
     "qrcode": "^1.5.4"
   }
 }

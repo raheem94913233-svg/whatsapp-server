@@ -6,7 +6,8 @@
 ## النشر على Render (الخطة المجانية تكفي — لا يلزم Disk)
 1. ارفع ملفات هذا المجلد (كما هي) إلى مستودع GitHub جديد.
 2. افتح https://dashboard.render.com › **New** › **Blueprint** واختر المستودع، ثم **Apply**
-   (أو: New › Web Service › اختر المستودع › Language: **Docker** › Instance: **Free**).
+   (أو: New › Web Service › اختر المستودع › Instance: **Free** — يعمل باختيار Docker أو Node؛
+   مع Node اجعل Build Command: `npm install` و Start Command: `node server.js`).
 3. بعد اكتمال النشر افتح الخدمة › **Environment**: انسخ قيمة `SERVICE_TOKEN`
    (إن أنشأتها يدويًا فأضف `SERVICE_TOKEN` بقيمة سرية تختارها).
 4. انسخ رابط الخدمة من أعلى الصفحة (مثل https://school-whatsapp.onrender.com).
