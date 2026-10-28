@@ -3,21 +3,16 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
-  "engines": {
-    "node": ">=20"
-  },
-  "scripts": {
-    "start": "node server.js",
-    "build": "npm install"
-  },
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node server.js", "build": "npm install" },
   "dependencies": {
-    "@sparticuz/chromium": "^131.0.1",
     "@whiskeysockets/baileys": "6.7.9",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "pino": "^9.4.0",
-    "puppeteer": "23.10.4",
-    "puppeteer-core": "23.10.4",
+    "@expo-google-fonts/ibm-plex-sans-arabic": "0.4.2",
+    "@resvg/resvg-js": "2.6.2",
+    "pdf-lib": "1.17.1",
     "qrcode": "^1.5.4"
   }
 }

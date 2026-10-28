@@ -1,10 +1,11 @@
 services:
   - type: web
     name: school-whatsapp
-    runtime: docker
+    runtime: node
     plan: free
     region: frankfurt
-    dockerfilePath: ./Dockerfile
+    buildCommand: npm install
+    startCommand: node server.js
     healthCheckPath: /
     autoDeploy: true
     envVars:

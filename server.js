@@ -2,7 +2,10 @@ import express from "express";
 import cors from "cors";
 import qrcode from "qrcode";
 import pino from "pino";
-import puppeteer from "puppeteer-core";
+import { Resvg } from "@resvg/resvg-js";
+import { PDFDocument } from "pdf-lib";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { mkdir, rm, readdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -66,9 +69,73 @@ const factsLine = function factsLine(f) {
     parts.push("\u0627\u0646\u0635\u0631\u0627\u0641 \u0645\u0628\u0643\u0631 " + f.earlyMin + " \u062F\u0642\u064A\u0642\u0629 (\u0628\u0635\u0645 " + f.outClock + ")" + (f.excuseOut ? " \u2014 \u0645\u0633\u062A\u0623\u0630\u0646" : ""));
   return parts.length ? parts.join("\u060C ") : "\u0645\u0646\u0636\u0628\u0637";
 };
-const buildNoticeHtml = function buildNoticeHtml(d) {
-  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] || c), f = d.facts, lateTxt = f.lateMin ? f.lateMin + " \u062F\u0642\u064A\u0642\u0629 \u2014 \u0648\u0642\u062A \u0627\u0644\u0628\u0635\u0645\u0629 " + f.inClock + "\u060C \u0648\u0627\u0644\u0645\u0641\u062A\u0631\u0636 \u0627\u0644\u0628\u0635\u0645 \u0642\u0628\u0644 \u0627\u0644\u0633\u0627\u0639\u0629 " + f.inLimitClock + (f.excuseIn ? " (\u0645\u0633\u062A\u0623\u0630\u0646)" : "") : f.missingIn ? "\u2014" : "\u0644\u0627 \u064A\u0648\u062C\u062F \u2014 \u0628\u0635\u0645\u0629 \u0627\u0644\u062D\u0636\u0648\u0631 " + f.inClock, inTxt = f.missingIn ? "\u0644\u0645 \u062A\u064F\u0633\u062C\u064E\u0651\u0644 \u0628\u0635\u0645\u0629 \u0627\u0644\u062D\u0636\u0648\u0631 (\u0627\u0644\u0645\u0641\u062A\u0631\u0636 \u0642\u0628\u0644 \u0627\u0644\u0633\u0627\u0639\u0629 " + f.inLimitClock + ")" + (f.excuseIn ? " \u2014 \u0645\u0633\u062A\u0623\u0630\u0646" : "") : "\u0644\u0627 \u064A\u0648\u062C\u062F", outTxt = f.missingOut ? "\u0644\u0645 \u062A\u064F\u0633\u062C\u064E\u0651\u0644 \u0628\u0635\u0645\u0629 \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 (\u0627\u0644\u0645\u0641\u062A\u0631\u0636 \u0628\u0639\u062F \u0627\u0644\u0633\u0627\u0639\u0629 " + f.outTimeClock + ")" + (f.excuseOut ? " \u2014 \u0645\u0633\u062A\u0623\u0630\u0646" : "") : f.earlyMin ? "\u0627\u0646\u0635\u0631\u0627\u0641 \u0645\u0628\u0643\u0631 \u2014 \u0628\u0635\u0645\u0629 \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 " + f.outClock + " \u0642\u0628\u0644 \u0627\u0644\u0645\u0648\u0639\u062F (" + f.outTimeClock + ") \u0628\u0640 " + f.earlyMin + " \u062F\u0642\u064A\u0642\u0629" + (f.excuseOut ? " \u2014 \u0645\u0633\u062A\u0623\u0630\u0646" : "") : "\u0644\u0627 \u064A\u0648\u062C\u062F \u2014 \u0628\u0635\u0645\u0629 \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 " + f.outClock, row = (k, v, bad) => "<tr><th>" + esc(k) + '</th><td class="' + (bad ? "bad" : "") + '">' + esc(v) + "</td></tr>";
-  return '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>\u0625\u0641\u0627\u062F\u0629</title>' + '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap"><style>@page{size:A4;margin:16mm}*{box-sizing:border-box}body{font-family:"IBM Plex Sans Arabic","Noto Naskh Arabic","KacstOne",Tahoma,sans-serif;color:#1a2433;margin:0;font-size:15px;line-height:1.9}.head{text-align:center;border-bottom:3px double #1f5f8b;padding-bottom:10px;margin-bottom:18px}.head img{height:110px;object-fit:contain}.head .s{font-weight:700;font-size:16px;margin-top:4px}h1{text-align:center;font-size:30px;margin:6px 0 18px;letter-spacing:2px;color:#1f5f8b}.who{font-size:17px;margin:0 0 4px}.who b{display:inline-block;min-width:110px}p.lead{margin:18px 0 10px;font-size:16px}table{width:100%;border-collapse:collapse;margin:6px 0 18px}th,td{border:1px solid #c9d3df;padding:10px 12px;text-align:right;vertical-align:top}th{width:34%;background:#eef3f8;font-weight:700}td.bad{color:#a61b1b;font-weight:600}.when{display:flex;gap:40px;font-size:16px;margin-top:6px}.sign{margin-top:46px;display:flex;justify-content:flex-end}.sign div{text-align:center;min-width:220px}.sign b{display:block;font-size:17px}.note{margin-top:30px;font-size:12px;color:#6b7785;text-align:center}</style></head><body><div class="head">' + (d.logo ? '<img src="' + esc(d.logo) + '" alt="">' : "") + (d.schoolName ? '<div class="s">' + esc(d.schoolName) + "</div>" : "") + "</div>" + "<h1>\u0625\u0641\u0627\u062F\u0629</h1>" + '<div class="who"><b>\u0627\u0644\u0623\u0633\u062A\u0627\u0630 :</b> ' + esc(d.name) + " \u0627\u0644\u0645\u062D\u062A\u0631\u0645</div>" + '<div class="who"><b>\u0631\u0642\u0645 \u0627\u0644\u0645\u0648\u0638\u0641 :</b> ' + esc(d.empNo || "\u2014") + "</div>" + '<div class="who"><b>\u0627\u0644\u0645\u0633\u0645\u0649 \u0627\u0644\u0648\u0638\u064A\u0641\u064A :</b> ' + esc(d.spec || "\u2014") + "</div>" + '<p class="lead">\u0646\u0641\u064A\u062F\u0643\u0645 \u0628\u0623\u0646\u0647 \u0623\u062B\u0646\u0627\u0621 \u0627\u0644\u0645\u062A\u0627\u0628\u0639\u0629 \u0627\u0644\u0625\u0644\u0643\u062A\u0631\u0648\u0646\u064A\u0629 \u0645\u0646 \u062E\u0644\u0627\u0644 \u0645\u0624\u0634\u0631 \u0627\u0644\u0627\u0646\u0636\u0628\u0627\u0637 \u0627\u0644\u0645\u062F\u0631\u0633\u064A \u0644\u0648\u062D\u0638:</p>' + "<table>" + row("\u062A\u0623\u062E\u0631\u0643\u0645", lateTxt, f.lateMin > 0 && !f.excuseIn) + row("\u0639\u062F\u0645 \u0625\u062B\u0628\u0627\u062A \u0628\u0635\u0645\u0629 \u0627\u0644\u062D\u0636\u0648\u0631", inTxt, f.missingIn && !f.excuseIn) + row("\u0639\u062F\u0645 \u0625\u062B\u0628\u0627\u062A \u0628\u0635\u0645\u0629 \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 / \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 \u0627\u0644\u0645\u0628\u0643\u0631", outTxt, (f.missingOut || f.earlyMin > 0) && !f.excuseOut) + (f.leaveText ? row("\u0627\u0644\u0627\u0633\u062A\u0626\u0630\u0627\u0646", f.leaveText, !1) : "") + "</table>" + '<div class="when"><div><b>\u0627\u0644\u064A\u0648\u0645 :</b> ' + esc(d.day) + "</div><div><b>\u0627\u0644\u062A\u0627\u0631\u064A\u062E :</b> " + esc(d.date) + '</div></div><div class="sign" dir="ltr"><div dir="rtl"><b>' + esc(d.principalName || "\u0646\u0627\u0635\u0631 \u063A\u0631\u064A\u0628 \u0627\u0644\u0628\u0644\u0648\u0634\u064A") + "</b>" + esc(d.principalTitle || "\u0645\u062F\u064A\u0631 \u0627\u0644\u0645\u062F\u0631\u0633\u0629") + "</div></div>" + '<div class="note">\u0645\u0648\u0639\u062F \u0628\u0635\u0645\u0629 \u0627\u0644\u062D\u0636\u0648\u0631 \u0642\u0628\u0644 ' + esc(f.inLimitClock) + " \u2014 \u0645\u0648\u0639\u062F \u0628\u0635\u0645\u0629 \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 \u0628\u0639\u062F " + esc(f.outTimeClock) + "</div></body></html>";
+const buildNoticeSvg = function buildNoticeSvg(d) {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] || c), rl = (s) => "\u200F" + s + "\u200F", wrap = (text, width, size) => {
+    const max = Math.max(8, Math.floor(width / (size * 0.46))), out = [];
+    let cur = "";
+    for (const w of String(text || "").split(/\s+/).filter(Boolean))
+      if (cur && (cur + " " + w).length > max) {
+        out.push(cur);
+        cur = w;
+      } else
+        cur = cur ? cur + " " + w : w;
+    if (cur)
+      out.push(cur);
+    return out.length ? out : [""];
+  }, t = (x, y, s, size, o) => '<text x="' + x + '" y="' + y + '" font-family="IBM Plex Sans Arabic" font-size="' + size + '" font-weight="' + (o && o.weight || (o && o.bold ? 700 : 400)) + '" fill="' + (o && o.color || "#1a2433") + '" text-anchor="' + (o && o.anchor || "end") + '">' + esc(rl(s)) + "</text>", kv = (x, y, k, v, size) => '<text x="' + x + '" y="' + y + '" font-family="IBM Plex Sans Arabic" font-size="' + size + '" fill="#1a2433" text-anchor="end">' + esc("\u200F") + '<tspan font-weight="700">' + esc(k) + "</tspan> " + esc(v) + esc("\u200F") + "</text>", f = d.facts, lateTxt = f.lateMin ? f.lateMin + " \u062F\u0642\u064A\u0642\u0629 \u2014 \u0648\u0642\u062A \u0627\u0644\u0628\u0635\u0645\u0629 " + f.inClock + "\u060C \u0648\u0627\u0644\u0645\u0641\u062A\u0631\u0636 \u0627\u0644\u0628\u0635\u0645 \u0642\u0628\u0644 \u0627\u0644\u0633\u0627\u0639\u0629 " + f.inLimitClock + (f.excuseIn ? " (\u0645\u0633\u062A\u0623\u0630\u0646)" : "") : f.missingIn ? "\u2014" : "\u0644\u0627 \u064A\u0648\u062C\u062F \u2014 \u0628\u0635\u0645\u0629 \u0627\u0644\u062D\u0636\u0648\u0631 " + f.inClock, inTxt = f.missingIn ? "\u0644\u0645 \u062A\u064F\u0633\u062C\u064E\u0651\u0644 \u0628\u0635\u0645\u0629 \u0627\u0644\u062D\u0636\u0648\u0631 (\u0627\u0644\u0645\u0641\u062A\u0631\u0636 \u0642\u0628\u0644 \u0627\u0644\u0633\u0627\u0639\u0629 " + f.inLimitClock + ")" + (f.excuseIn ? " \u2014 \u0645\u0633\u062A\u0623\u0630\u0646" : "") : "\u0644\u0627 \u064A\u0648\u062C\u062F", outTxt = f.missingOut ? "\u0644\u0645 \u062A\u064F\u0633\u062C\u064E\u0651\u0644 \u0628\u0635\u0645\u0629 \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 (\u0627\u0644\u0645\u0641\u062A\u0631\u0636 \u0628\u0639\u062F \u0627\u0644\u0633\u0627\u0639\u0629 " + f.outTimeClock + ")" + (f.excuseOut ? " \u2014 \u0645\u0633\u062A\u0623\u0630\u0646" : "") : f.earlyMin ? "\u0627\u0646\u0635\u0631\u0627\u0641 \u0645\u0628\u0643\u0631 \u2014 \u0628\u0635\u0645\u0629 \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 " + f.outClock + " \u0642\u0628\u0644 \u0627\u0644\u0645\u0648\u0639\u062F (" + f.outTimeClock + ") \u0628\u0640 " + f.earlyMin + " \u062F\u0642\u064A\u0642\u0629" + (f.excuseOut ? " \u2014 \u0645\u0633\u062A\u0623\u0630\u0646" : "") : "\u0644\u0627 \u064A\u0648\u062C\u062F \u2014 \u0628\u0635\u0645\u0629 \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 " + f.outClock, rows = [
+    ["\u062A\u0623\u062E\u0631\u0643\u0645", lateTxt, f.lateMin > 0 && !f.excuseIn],
+    ["\u0639\u062F\u0645 \u0625\u062B\u0628\u0627\u062A \u0628\u0635\u0645\u0629 \u0627\u0644\u062D\u0636\u0648\u0631", inTxt, f.missingIn && !f.excuseIn],
+    ["\u0639\u062F\u0645 \u0625\u062B\u0628\u0627\u062A \u0628\u0635\u0645\u0629 \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 / \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 \u0627\u0644\u0645\u0628\u0643\u0631", outTxt, (f.missingOut || f.earlyMin > 0) && !f.excuseOut]
+  ];
+  if (f.leaveText)
+    rows.push(["\u0627\u0644\u0627\u0633\u062A\u0626\u0630\u0627\u0646", f.leaveText, !1]);
+  let y = 70, s = "";
+  if (d.logo) {
+    s += '<image href="' + esc(d.logo) + '" x="400" y="' + y + '" width="440" height="160" preserveAspectRatio="xMidYMid meet"/>';
+    y += 175;
+  }
+  if (d.schoolName) {
+    y += 30;
+    s += t(620, y, d.schoolName, 28, { bold: !0, anchor: "middle" });
+    y += 12;
+  }
+  y += 14;
+  s += '<line x1="110" y1="' + y + '" x2="1130" y2="' + y + '" stroke="#1f5f8b" stroke-width="2"/><line x1="110" y1="' + (y + 6) + '" x2="1130" y2="' + (y + 6) + '" stroke="#1f5f8b" stroke-width="2"/>';
+  y += 90;
+  s += t(620, y, "\u0625\u0641\u0627\u062F\u0629", 58, { bold: !0, color: "#1f5f8b", anchor: "middle" });
+  y += 80;
+  s += kv(1130, y, "\u0627\u0644\u0623\u0633\u062A\u0627\u0630 :", (d.name || "") + " \u0627\u0644\u0645\u062D\u062A\u0631\u0645", 30);
+  y += 52;
+  s += kv(1130, y, "\u0631\u0642\u0645 \u0627\u0644\u0645\u0648\u0638\u0641 :", d.empNo || "\u2014", 30);
+  y += 52;
+  s += kv(1130, y, "\u0627\u0644\u0645\u0633\u0645\u0649 \u0627\u0644\u0648\u0638\u064A\u0641\u064A :", d.spec || "\u2014", 30);
+  y += 40;
+  for (const line of wrap("\u0646\u0641\u064A\u062F\u0643\u0645 \u0628\u0623\u0646\u0647 \u0623\u062B\u0646\u0627\u0621 \u0627\u0644\u0645\u062A\u0627\u0628\u0639\u0629 \u0627\u0644\u0625\u0644\u0643\u062A\u0631\u0648\u0646\u064A\u0629 \u0645\u0646 \u062E\u0644\u0627\u0644 \u0645\u0624\u0634\u0631 \u0627\u0644\u0627\u0646\u0636\u0628\u0627\u0637 \u0627\u0644\u0645\u062F\u0631\u0633\u064A \u0644\u0648\u062D\u0638:", 1020, 28)) {
+    y += 46;
+    s += t(1130, y, line, 28);
+  }
+  y += 26;
+  const thW = Math.round(346.8), pad = 20, lh = 40;
+  for (const [k, v, bad] of rows) {
+    const kl = wrap(k, thW - pad * 2, 26), vl = wrap(v, 1020 - thW - pad * 2, 26), h = Math.max(kl.length, vl.length) * lh + 26;
+    s += '<rect x="' + (1130 - thW) + '" y="' + y + '" width="' + thW + '" height="' + h + '" fill="#eef3f8" stroke="#c9d3df" stroke-width="2"/>';
+    s += '<rect x="110" y="' + y + '" width="' + (1020 - thW) + '" height="' + h + '" fill="#ffffff" stroke="#c9d3df" stroke-width="2"/>';
+    kl.forEach((line, i) => {
+      s += t(1130 - pad, y + 44 + i * lh, line, 26, { bold: !0 });
+    });
+    vl.forEach((line, i) => {
+      s += t(1130 - thW - pad, y + 44 + i * lh, line, 26, bad ? { color: "#a61b1b", weight: 600 } : void 0);
+    });
+    y += h;
+  }
+  y += 70;
+  s += kv(1130, y, "\u0627\u0644\u064A\u0648\u0645 :", d.day, 28) + kv(710, y, "\u0627\u0644\u062A\u0627\u0631\u064A\u062E :", "\u202A" + d.date + "\u202C", 28);
+  y += 120;
+  s += t(310, y, d.principalName || "\u0646\u0627\u0635\u0631 \u063A\u0631\u064A\u0628 \u0627\u0644\u0628\u0644\u0648\u0634\u064A", 30, { bold: !0, anchor: "middle" });
+  s += t(310, y + 46, d.principalTitle || "\u0645\u062F\u064A\u0631 \u0627\u0644\u0645\u062F\u0631\u0633\u0629", 27, { anchor: "middle" });
+  const H = Math.max(1754, y + 200);
+  s += t(620, H - 70, "\u0645\u0648\u0639\u062F \u0628\u0635\u0645\u0629 \u0627\u0644\u062D\u0636\u0648\u0631 \u0642\u0628\u0644 " + f.inLimitClock + " \u2014 \u0645\u0648\u0639\u062F \u0628\u0635\u0645\u0629 \u0627\u0644\u0627\u0646\u0635\u0631\u0627\u0641 \u0628\u0639\u062F " + f.outTimeClock, 22, { color: "#6b7785", anchor: "middle" });
+  return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1240" height="' + H + '" viewBox="0 0 1240 ' + H + '"><rect width="100%" height="100%" fill="#ffffff"/>' + s + "</svg>";
 };
 const buildManagerSummary = function buildManagerSummary(rows, date, day, extra) {
   const late = rows.filter((r) => r.facts.lateMin > 0), noIn = rows.filter((r) => r.facts.missingIn), noOut = rows.filter((r) => r.facts.missingOut), early = rows.filter((r) => r.facts.earlyMin > 0), leave = rows.filter((r) => r.facts.leaveText), list = (arr, fn) => arr.length ? arr.map((r, i) => "  " + (i + 1) + ". " + fn(r)).join(`
@@ -179,40 +246,50 @@ async function sendText(to, message) {
   await sock.sendMessage(jidOf(to), { text: String(message) });
 }
 
-/* ---------------- PDF ----------------
- * Works on both Render setups: Docker (system Chromium from the Dockerfile) and the plain Node runtime
- * (Chrome downloaded by the "puppeteer" package into ./.cache/puppeteer during npm install). */
-let browser = null, pdfError = "", chromeFound = "";
-async function findChrome() {
-  const paths = [process.env.PUPPETEER_EXECUTABLE_PATH, "/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome-stable", "/usr/bin/google-chrome"].filter(Boolean);
-  for (const p of paths) if (existsSync(p)) return p;
-  try { const full = await import("puppeteer"); const p = (full.default || full).executablePath(); if (p && existsSync(p)) return p; } catch {}
-  throw new Error("Chromium \u063A\u064A\u0631 \u0645\u0648\u062C\u0648\u062F \u0639\u0644\u0649 \u0627\u0644\u0633\u064A\u0631\u0641\u0631 \u2014 \u062D\u062F\u0651\u062B \u0645\u0644\u0641\u0627\u062A \u0627\u0644\u0633\u064A\u0631\u0641\u0631 \u062B\u0645 \u0623\u0639\u062F \u0627\u0644\u0646\u0634\u0631");
-}
-async function htmlToPdf(html) {
-  if (!browser || !browser.connected) {
-    chromeFound = await findChrome();
-    browser = await puppeteer.launch({ executablePath: chromeFound, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--no-zygote", "--font-render-hinting=none"] });
+/* ---------------- PDF / image (no browser needed) ----------------
+ * The notice is an SVG drawn by the web app's builder, rendered to PNG with resvg (bundled Arabic font),
+ * then placed on an A4 PDF page. If the PDF step fails the PNG is sent as an image; the text always goes out. */
+const HERE = dirname(fileURLToPath(import.meta.url));
+const FONT_DIR = join(HERE, "node_modules", "@expo-google-fonts", "ibm-plex-sans-arabic");
+const FONT_FILES = ["400Regular/IBMPlexSansArabic_400Regular.ttf", "600SemiBold/IBMPlexSansArabic_600SemiBold.ttf", "700Bold/IBMPlexSansArabic_700Bold.ttf"];
+const FONT_URLS = ["Regular", "SemiBold", "Bold"].map((w) => "https://github.com/google/fonts/raw/main/ofl/ibmplexsansarabic/IBMPlexSansArabic-" + w + ".ttf");
+let fontsCache = null, pdfError = "";
+async function fonts() {
+  if (fontsCache) return fontsCache;
+  const local = FONT_FILES.map((f) => join(FONT_DIR, f));
+  if (local.every((f) => existsSync(f))) return (fontsCache = local);
+  await mkdir(join(HERE, "fonts"), { recursive: true });
+  const out = [];
+  for (const [i, u] of FONT_URLS.entries()) {
+    const f = join(HERE, "fonts", i + ".ttf");
+    if (!existsSync(f)) { const r = await fetch(u); if (!r.ok) throw new Error("font download " + r.status); await writeFile(f, Buffer.from(await r.arrayBuffer())); }
+    out.push(f);
   }
-  const page = await browser.newPage();
-  try {
-    await page.setContent(html, { waitUntil: "networkidle0", timeout: 20000 }).catch(() => page.setContent(html, { waitUntil: "load" }));
-    await page.evaluate(() => document.fonts && document.fonts.ready);
-    const pdf = Buffer.from(await page.pdf({ format: "A4", printBackground: true }));
-    pdfError = "";
-    return pdf;
-  } finally { await page.close().catch(() => {}); }
+  return (fontsCache = out);
 }
-// The text notice is always delivered; if the PDF cannot be produced the message still goes out and the reason is reported.
-async function sendPdf(to, message, html, fileName) {
+async function svgToPng(svg) {
+  const r = new Resvg(svg, { fitTo: { mode: "width", value: 1240 }, font: { fontFiles: await fonts(), loadSystemFonts: false, defaultFontFamily: "IBM Plex Sans Arabic" } });
+  return Buffer.from(r.render().asPng());
+}
+async function pngToPdf(png) {
+  const doc = await PDFDocument.create();
+  const img = await doc.embedPng(png);
+  const w = 595.28, h = (img.height / img.width) * w;
+  doc.addPage([w, Math.max(h, 841.89)]).drawImage(img, { x: 0, y: Math.max(h, 841.89) - h, width: w, height: h });
+  return Buffer.from(await doc.save());
+}
+// Sends the message, then the notice as a PDF (or as an image if the PDF cannot be built).
+async function sendPdf(to, message, svg, fileName) {
   if (!sock || !connected) throw new Error("whatsapp not connected");
-  let pdf = null;
-  try { pdf = await htmlToPdf(html); } catch (e) { pdfError = e?.message || String(e); browser = null; console.error("pdf", pdfError); }
+  let png = null, pdf = null;
+  try { png = await svgToPng(svg); } catch (e) { pdfError = "render: " + (e?.message || e); console.error(pdfError); }
+  if (png) { try { pdf = await pngToPdf(png); pdfError = ""; } catch (e) { pdfError = "pdf: " + (e?.message || e); console.error(pdfError); } }
   if (message) await sock.sendMessage(jidOf(to), { text: String(message) });
   if (pdf) await sock.sendMessage(jidOf(to), { document: pdf, mimetype: "application/pdf", fileName: fileName || "\u0625\u0641\u0627\u062F\u0629.pdf" });
-  return { pdf: !!pdf, pdfError: pdf ? undefined : pdfError };
+  else if (png) await sock.sendMessage(jidOf(to), { image: png, caption: (fileName || "\u0625\u0641\u0627\u062F\u0629").replace(/\.pdf$/i, "") });
+  return { pdf: !!pdf, image: !pdf && !!png, pdfError: pdf ? undefined : pdfError };
 }
-findChrome().then((p) => { chromeFound = p; console.log("chromium:", p); }).catch((e) => { pdfError = e.message; console.error(e.message); });
+fonts().then(() => svgToPng('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><text x="20" y="30">\u0627\u062E\u062A\u0628\u0627\u0631</text></svg>')).then(() => console.log("pdf renderer ready")).catch((e) => { pdfError = e?.message || String(e); console.error("pdf renderer", pdfError); });
 
 /* ---------------- helpers ---------------- */
 const toEn = (s) => String(s || "").replace(/[\u0660-\u0669]/g, (c) => String(c.charCodeAt(0) - 1632)).replace(/[\u06F0-\u06F9]/g, (c) => String(c.charCodeAt(0) - 1776));
@@ -250,9 +327,9 @@ async function runDaily(date, opts = {}) {
     if (!to) { items[uid] = { ok: false, err: "\u0644\u0627 \u064A\u0648\u062C\u062F \u0631\u0642\u0645 \u0648\u0627\u062A\u0633\u0627\u0628", name: u.name || uid }; failed++; continue; }
     const vars = { name: u.name, date, day, empNo: u.empNo, spec: (u.title || u.specialization || "").trim(), school: settings || "", late: facts.lateMin ? facts.lateMin + " \u062F\u0642\u064A\u0642\u0629" : "", status: factsLine(facts) };
     try {
-      const html = buildNoticeHtml({ logo: logo || "", schoolName: settings || "", name: u.name || uid, empNo: u.empNo, spec: (u.title || u.specialization || "").trim(), date, day, facts, principalName: cfg.principalName, principalTitle: cfg.principalTitle });
-      const r = await sendPdf(to, fillTemplate(cfg.template || DEFAULT_NOTICE_TEMPLATE, vars), html, "\u0625\u0641\u0627\u062F\u0629 - " + (u.name || uid) + " - " + date + ".pdf");
-      items[uid] = r.pdf ? { ok: true, name: u.name || uid } : { ok: true, name: u.name || uid, err: "\u0623\u064F\u0631\u0633\u0644\u062A \u0627\u0644\u0631\u0633\u0627\u0644\u0629 \u0628\u062F\u0648\u0646 PDF: " + r.pdfError }; sent++;
+      const svg = buildNoticeSvg({ logo: logo || "", schoolName: settings || "", name: u.name || uid, empNo: u.empNo, spec: (u.title || u.specialization || "").trim(), date, day, facts, principalName: cfg.principalName, principalTitle: cfg.principalTitle });
+      const r = await sendPdf(to, fillTemplate(cfg.template || DEFAULT_NOTICE_TEMPLATE, vars), svg, "\u0625\u0641\u0627\u062F\u0629 - " + (u.name || uid) + " - " + date + ".pdf");
+      items[uid] = r.pdf ? { ok: true, name: u.name || uid } : { ok: true, name: u.name || uid, err: r.image ? "\u0623\u064F\u0631\u0633\u0644\u062A \u0627\u0644\u0625\u0641\u0627\u062F\u0629 \u0643\u0635\u0648\u0631\u0629" : "\u0623\u064F\u0631\u0633\u0644\u062A \u0627\u0644\u0631\u0633\u0627\u0644\u0629 \u0628\u062F\u0648\u0646 \u0627\u0644\u0625\u0641\u0627\u062F\u0629: " + r.pdfError }; sent++;
     } catch (e) { items[uid] = { ok: false, err: e?.message || "send failed", name: u.name || uid }; failed++; }
     await sleep(2500 + Math.random() * 2500);
   }
@@ -303,14 +380,14 @@ function auth(req, res, next) {
   next();
 }
 app.get("/", (_q, res) => res.json({ ok: true, service: "school-whatsapp" }));
-app.get("/status", auth, (_q, res) => res.json({ ok: !startupError, connected, status: startupError ? "error" : connected ? "connected" : starting ? "starting" : "waiting", error: startupError || undefined, qr: lastQr || undefined, persistentAuth: AUTH_DIR.startsWith("/data/"), pdf: !pdfError && !!chromeFound, pdfError: pdfError || undefined }));
+app.get("/status", auth, (_q, res) => res.json({ ok: !startupError, connected, status: startupError ? "error" : connected ? "connected" : starting ? "starting" : "waiting", error: startupError || undefined, qr: lastQr || undefined, persistentAuth: AUTH_DIR.startsWith("/data/"), pdf: !pdfError, renderer: "resvg", pdfError: pdfError || undefined }));
 app.get("/qr", auth, (_q, res) => res.json({ qr: lastQr || null, connected }));
 app.post("/send", auth, async (req, res) => {
   try { const { to, message } = req.body || {}; if (!to || !message) return res.status(400).json({ error: "to & message required" }); await sendText(to, message); res.json({ ok: true }); }
   catch (e) { res.status(e?.message === "whatsapp not connected" ? 503 : 500).json({ error: e?.message || "send failed" }); }
 });
 app.post("/send-pdf", auth, async (req, res) => {
-  try { const { to, message, html, fileName } = req.body || {}; if (!to || !html) return res.status(400).json({ error: "to & html required" }); const r = await sendPdf(to, message, html, fileName); await log({ kind: "test", to, ok: true, pdf: r.pdf, err: r.pdfError }); res.json({ ok: true, ...r }); }
+  try { const { to, message, svg, doc, fileName } = req.body || {}; const pic = svg || (doc ? buildNoticeSvg(doc) : ""); if (!to || !pic) return res.status(400).json({ error: "to & svg required" }); const r = await sendPdf(to, message, pic, fileName); await log({ kind: "test", to, ok: true, pdf: r.pdf, err: r.pdfError }); res.json({ ok: true, ...r }); }
   catch (e) { res.status(e?.message === "whatsapp not connected" ? 503 : 500).json({ error: e?.message || "send failed" }); }
 });
 app.post("/run-daily", auth, async (req, res) => {
