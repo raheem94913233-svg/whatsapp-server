@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: school-whatsapp
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: SERVICE_TOKEN
+        generateValue: true
+      - key: FIREBASE_DB_URL
+        value: https://ghiabi-default-rtdb.firebaseio.com
+      - key: AUTH_DIR
+        value: ./auth

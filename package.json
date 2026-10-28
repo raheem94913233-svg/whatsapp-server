@@ -1,6 +1,6 @@
 {
-  "name": "whatsapp-notifier",
-  "version": "2.0.0",
+  "name": "school-whatsapp-server",
+  "version": "1.0.0",
   "type": "module",
   "main": "server.js",
   "engines": { "node": ">=20" },
@@ -10,6 +10,7 @@
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "pino": "^9.4.0",
+    "puppeteer-core": "^23.10.4",
     "qrcode": "^1.5.4"
   }
 }
